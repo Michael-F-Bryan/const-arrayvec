@@ -50,6 +50,8 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
 
     pub const fn capacity(&self) -> usize { N }
 
+    pub const fn remaining_capacity(&self) -> usize { N - self.len() }
+
     pub const fn is_full(&self) -> bool { self.len() >= self.capacity() }
 
     pub fn as_ptr(&self) -> *const T { self.items.as_ptr() as *const T }
@@ -163,6 +165,13 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// Remove all items from the vector.
     pub fn clear(&mut self) { self.truncate(0); }
 
+    pub fn insert(&mut self, index: usize, item: T) {
+        match self.try_insert(index, item) {
+            Ok(_) => {},
+            Err(e) => panic!("Insert failed: {}", e),
+        }
+    }
+
     /// Try to insert an item into the vector.
     ///
     /// # Examples
@@ -213,6 +222,28 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     pub fn as_slice(&self) -> &[T] { self.deref() }
 
     pub fn as_slice_mut(&mut self) -> &mut [T] { self.deref_mut() }
+
+    pub fn try_extend_from_slice(
+        &mut self,
+        other: &[T],
+    ) -> Result<(), CapacityError<()>>
+    where
+        T: Copy,
+    {
+        if self.remaining_capacity() < other.len() {
+            return Err(CapacityError(()));
+        }
+
+        let self_len = self.len();
+        let other_len = other.len();
+
+        unsafe {
+            let dst = self.as_mut_ptr().offset(self_len as isize);
+            ptr::copy_nonoverlapping(other.as_ptr(), dst, other_len);
+            self.set_len(self_len + other_len);
+        }
+        Ok(())
+    }
 }
 
 impl<T, const N: usize> Deref for ArrayVec<T, { N }> {
@@ -226,6 +257,13 @@ impl<T, const N: usize> Deref for ArrayVec<T, { N }> {
 impl<T, const N: usize> DerefMut for ArrayVec<T, { N }> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { slice::from_raw_parts_mut(self.as_mut_ptr(), self.len()) }
+    }
+}
+
+impl<T, const N: usize> Drop for ArrayVec<T, { N }> {
+    fn drop(&mut self) {
+        // Makes sure the destructors for all items are run.
+        self.clear();
     }
 }
 
@@ -288,6 +326,21 @@ where
 {
     fn index_mut(&mut self, ix: Ix) -> &mut Self::Output {
         self.as_slice_mut().index_mut(ix)
+    }
+}
+
+impl<T: Clone, const N: usize> Clone for ArrayVec<T, { N }> {
+    fn clone(&self) -> ArrayVec<T, { N }> {
+        let mut other: ArrayVec<T, { N }> = ArrayVec::new();
+
+        for item in self.as_slice() {
+            unsafe {
+                // if it fit into the original, it'll fit into the clone
+                other.push_unchecked(item.clone());
+            }
+        }
+
+        other
     }
 }
 
