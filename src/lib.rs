@@ -3,9 +3,11 @@
 #![allow(incomplete_features)]
 
 use core::{
-    fmt::{self, Display, Formatter},
+    cmp::Ordering,
+    fmt::{self, Debug, Display, Formatter},
+    hash::{Hash, Hasher},
     mem::MaybeUninit,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
     ptr, slice,
 };
 
@@ -22,6 +24,7 @@ macro_rules! out_of_bounds {
     };
 }
 
+/// A vector type backed by a fixed-length array.
 pub struct ArrayVec<T, const N: usize> {
     items: [MaybeUninit<T>; N],
     length: usize,
@@ -160,6 +163,22 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// Remove all items from the vector.
     pub fn clear(&mut self) { self.truncate(0); }
 
+    /// Try to insert an item into the vector.
+    ///
+    /// # Examples
+    ///
+    /// The "happy path" works just as expected:
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector: ArrayVec<u32, 5> = ArrayVec::new();
+    /// vector.push(12);
+    /// vector.push(34);
+    ///
+    /// vector.try_insert(1, 56).unwrap();
+    ///
+    /// assert_eq!(vector.as_slice(), &[12, 56, 34]);
+    /// ```
     pub fn try_insert(
         &mut self,
         index: usize,
@@ -190,6 +209,10 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
 
         Ok(())
     }
+
+    pub fn as_slice(&self) -> &[T] { self.deref() }
+
+    pub fn as_slice_mut(&mut self) -> &mut [T] { self.deref_mut() }
 }
 
 impl<T, const N: usize> Deref for ArrayVec<T, { N }> {
@@ -203,6 +226,68 @@ impl<T, const N: usize> Deref for ArrayVec<T, { N }> {
 impl<T, const N: usize> DerefMut for ArrayVec<T, { N }> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { slice::from_raw_parts_mut(self.as_mut_ptr(), self.len()) }
+    }
+}
+
+impl<T, const N: usize> AsRef<[T]> for ArrayVec<T, { N }> {
+    fn as_ref(&self) -> &[T] { self.as_slice() }
+}
+
+impl<T, const N: usize> AsMut<[T]> for ArrayVec<T, { N }> {
+    fn as_mut(&mut self) -> &mut [T] { self.as_slice_mut() }
+}
+
+impl<T: Debug, const N: usize> Debug for ArrayVec<T, { N }> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.as_slice()).finish()
+    }
+}
+
+impl<T: PartialEq, const N: usize> PartialEq for ArrayVec<T, { N }> {
+    fn eq(&self, other: &Self) -> bool { self.as_slice() == other.as_slice() }
+}
+
+impl<T: PartialEq, const N: usize> PartialEq<[T]> for ArrayVec<T, { N }> {
+    fn eq(&self, other: &[T]) -> bool { self.as_slice() == other }
+}
+
+impl<T: Eq, const N: usize> Eq for ArrayVec<T, { N }> {}
+
+impl<T: PartialOrd, const N: usize> PartialOrd for ArrayVec<T, { N }> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.as_slice().partial_cmp(other.as_slice())
+    }
+}
+
+impl<T: Ord, const N: usize> Ord for ArrayVec<T, { N }> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+
+impl<T: Hash, const N: usize> Hash for ArrayVec<T, { N }> {
+    fn hash<H: Hasher>(&self, hasher: &mut H) { self.as_slice().hash(hasher); }
+}
+
+impl<T, const N: usize> Default for ArrayVec<T, { N }> {
+    fn default() -> Self { ArrayVec::new() }
+}
+
+impl<Ix, T, const N: usize> Index<Ix> for ArrayVec<T, { N }>
+where
+    [T]: Index<Ix>,
+{
+    type Output = <[T] as Index<Ix>>::Output;
+
+    fn index(&self, ix: Ix) -> &Self::Output { self.as_slice().index(ix) }
+}
+
+impl<Ix, T, const N: usize> IndexMut<Ix> for ArrayVec<T, { N }>
+where
+    [T]: IndexMut<Ix>,
+{
+    fn index_mut(&mut self, ix: Ix) -> &mut Self::Output {
+        self.as_slice_mut().index_mut(ix)
     }
 }
 
