@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ArrayVec",""],["CapacityError",""]]});
+initSidebarItems({"struct":[["ArrayVec","A vector type backed by a fixed-length array."],["CapacityError",""]]});
