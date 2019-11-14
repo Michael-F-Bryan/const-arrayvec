@@ -6,7 +6,7 @@ use core::{
     cmp::Ordering,
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
-    mem::MaybeUninit,
+    mem::{self, MaybeUninit},
     ops::{Deref, DerefMut, Index, IndexMut},
     ptr, slice,
 };
@@ -31,6 +31,7 @@ pub struct ArrayVec<T, const N: usize> {
 }
 
 impl<T, const N: usize> ArrayVec<T, { N }> {
+    /// Create a new, empty [`ArrayVec`].
     pub fn new() -> ArrayVec<T, { N }> {
         unsafe {
             ArrayVec {
@@ -50,7 +51,9 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
 
     pub const fn capacity(&self) -> usize { N }
 
-    pub const fn remaining_capacity(&self) -> usize { N - self.len() }
+    pub const fn remaining_capacity(&self) -> usize {
+        self.capacity() - self.len()
+    }
 
     pub const fn is_full(&self) -> bool { self.len() >= self.capacity() }
 
@@ -112,7 +115,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// elements the vector thinks it contains, without adding or removing any
     /// elements. Use with care.
     pub unsafe fn set_len(&mut self, new_length: usize) {
-        debug_assert!(new_length < self.capacity());
+        debug_assert!(new_length <= self.capacity());
         self.length = new_length;
     }
 
@@ -165,6 +168,12 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// Remove all items from the vector.
     pub fn clear(&mut self) { self.truncate(0); }
 
+    /// Insert an item.
+    ///
+    /// # Panics
+    ///
+    /// The vector must have enough space for the item (see
+    /// [`ArrayVec::remaining_capacity()`]).
     pub fn insert(&mut self, index: usize, item: T) {
         match self.try_insert(index, item) {
             Ok(_) => {},
@@ -187,6 +196,21 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// vector.try_insert(1, 56).unwrap();
     ///
     /// assert_eq!(vector.as_slice(), &[12, 56, 34]);
+    /// ```
+    ///
+    /// Trying to insert an item when the [`ArrayVec`] is full will fail,
+    /// returning the original item.
+    ///
+    /// ```rust
+    /// use const_arrayvec::{ArrayVec, CapacityError};
+    /// let mut vector = ArrayVec::from([1, 2, 3]);
+    /// println!("{}, {}", vector.len(), vector.capacity());
+    /// println!("{:?}", vector);
+    /// assert!(vector.is_full());
+    ///
+    /// let got = vector.try_insert(1, 7);
+    ///
+    /// assert_eq!(got, Err(CapacityError(7)));
     /// ```
     pub fn try_insert(
         &mut self,
@@ -239,6 +263,8 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
 
         unsafe {
             let dst = self.as_mut_ptr().offset(self_len as isize);
+            // Note: we have a mutable reference to self, so it's not possible
+            // for the two arrays to overlap
             ptr::copy_nonoverlapping(other.as_ptr(), dst, other_len);
             self.set_len(self_len + other_len);
         }
@@ -261,6 +287,43 @@ impl<T, const N: usize> DerefMut for ArrayVec<T, { N }> {
 }
 
 impl<T, const N: usize> Drop for ArrayVec<T, { N }> {
+    /// Makes sure all items are cleaned up once you're done with the
+    /// [`ArrayVec`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use core::{mem, sync::atomic::{AtomicUsize, Ordering}};
+    /// use const_arrayvec::ArrayVec;
+    ///
+    /// // create a dummy type which increments a number when dropped
+    ///
+    /// struct OnDropped<'a>(&'a AtomicUsize);
+    ///
+    /// impl<'a> Drop for OnDropped<'a> {
+    ///   fn drop(&mut self) { self.0.fetch_add(1, Ordering::Relaxed); }
+    /// }
+    ///
+    /// // create our vector
+    /// let mut vector: ArrayVec<OnDropped<'_>, 5> = ArrayVec::new();
+    ///
+    /// // then set up our counter
+    /// let counter = AtomicUsize::new(0);
+    ///
+    /// // and add a couple `OnDropped`'s to the vector
+    /// vector.push(OnDropped(&counter));
+    /// vector.push(OnDropped(&counter));
+    /// vector.push(OnDropped(&counter));
+    ///
+    /// // the vector is still live so our counter shouldn't have changed
+    /// assert_eq!(counter.load(Ordering::Relaxed), 0);
+    ///
+    /// // explicitly drop the vector
+    /// mem::drop(vector);
+    ///
+    /// // and the counter should have updated
+    /// assert_eq!(counter.load(Ordering::Relaxed), 3);
+    /// ```
     fn drop(&mut self) {
         // Makes sure the destructors for all items are run.
         self.clear();
@@ -281,8 +344,12 @@ impl<T: Debug, const N: usize> Debug for ArrayVec<T, { N }> {
     }
 }
 
-impl<T: PartialEq, const N: usize> PartialEq for ArrayVec<T, { N }> {
-    fn eq(&self, other: &Self) -> bool { self.as_slice() == other.as_slice() }
+impl<T: PartialEq, const N: usize, const M: usize> PartialEq<ArrayVec<T, { M }>>
+    for ArrayVec<T, { N }>
+{
+    fn eq(&self, other: &ArrayVec<T, { M }>) -> bool {
+        self.as_slice() == other.as_slice()
+    }
 }
 
 impl<T: PartialEq, const N: usize> PartialEq<[T]> for ArrayVec<T, { N }> {
@@ -344,6 +411,32 @@ impl<T: Clone, const N: usize> Clone for ArrayVec<T, { N }> {
     }
 }
 
+impl<T, const N: usize> From<[T; N]> for ArrayVec<T, { N }> {
+    fn from(other: [T; N]) -> ArrayVec<T, { N }> {
+        let mut vec = ArrayVec::<T, { N }>::new();
+
+        unsafe {
+            // Copy the items from the array directly to the backing buffer
+
+            // Note: Safe because a [T; N] is identical to [MaybeUninit<T>; N]
+            ptr::copy_nonoverlapping(
+                other.as_ptr(),
+                vec.as_mut_ptr(),
+                other.len(),
+            );
+            // ownership has been transferred to the backing buffer, make sure
+            // the original array's destructors aren't called prematurely
+            mem::forget(other);
+            // the memory has now been initialized so it's safe to set the
+            // length
+            vec.set_len(N);
+        }
+
+        vec
+    }
+}
+
+/// The error returned when there isn't enough space to add another item.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct CapacityError<T>(pub T);
 
