@@ -2,12 +2,16 @@
 #![feature(const_generics)]
 #![allow(incomplete_features)]
 
+mod drain;
+
+pub use drain::Drain;
+
 use core::{
     cmp::Ordering,
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     mem::{self, MaybeUninit},
-    ops::{Deref, DerefMut, Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut, Range},
     ptr, slice,
 };
 
@@ -269,6 +273,10 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
             self.set_len(self_len + other_len);
         }
         Ok(())
+    }
+
+    pub fn drain(&mut self, range: Range<usize>) -> Drain<'_, T, { N }> {
+        Drain::with_range(self, range)
     }
 }
 
