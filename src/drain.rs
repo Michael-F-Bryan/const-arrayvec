@@ -40,6 +40,10 @@ impl<'a, T, const N: usize> Drain<'a, T, { N }> {
             let tail = vector.as_mut_ptr().add(range.end);
             let tail_length = vector.len() - (range.end - range.start);
 
+            // prevent a leaked Drain from letting users read from uninitialized
+            // memory
+            vector.set_len(range.start);
+
             Drain {
                 inner: vector,
                 drain_range_start: range.start,
