@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["ArrayVec","A vector type backed by a fixed-length array."],["CapacityError","The error returned when there isn't enough space to add another item."]]});
+initSidebarItems({"struct":[["ArrayVec","A vector type backed by a fixed-length array."],["CapacityError","The error returned when there isn't enough space to add another item."],["Drain",""]]});
