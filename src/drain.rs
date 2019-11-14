@@ -3,13 +3,16 @@ use core::{
     iter::{DoubleEndedIterator, FusedIterator},
     mem,
     ops::Range,
+    ptr,
 };
 
 #[derive(Debug, PartialEq)]
 pub struct Drain<'a, T, const N: usize> {
     inner: &'a mut ArrayVec<T, { N }>,
-    /// The first item after the drained range.
-    start_of_tail: usize,
+    /// The index of the first item being removed.
+    drain_range_start: usize,
+    /// The index of the first item after the drained range.
+    tail_start: usize,
     tail_length: usize,
     /// The front of the remaining drained range.
     head: *mut T,
@@ -39,7 +42,8 @@ impl<'a, T, const N: usize> Drain<'a, T, { N }> {
 
             Drain {
                 inner: vector,
-                start_of_tail: range.end,
+                drain_range_start: range.start,
+                tail_start: range.end,
                 tail_length,
                 head,
                 tail,
@@ -104,5 +108,33 @@ impl<'a, T, const N: usize> ExactSizeIterator for Drain<'a, T, { N }> {
         debug_assert!(difference >= 0, "Tail should always be after head");
 
         difference as usize / size
+    }
+}
+
+impl<'a, T, const N: usize> Drop for Drain<'a, T, { N }> {
+    fn drop(&mut self) {
+        // remove any remaining items so their destructors can run
+        while let Some(item) = self.next() {
+            mem::drop(item);
+        }
+
+        if self.tail_length == 0 {
+            // there are no items after the drained range
+            return;
+        }
+
+        unsafe {
+            let tail_start = self.inner.as_ptr().add(self.tail_start);
+            let drain_range_start =
+                self.inner.as_mut_ptr().add(self.drain_range_start);
+
+            // moves the tail (items after drained range) forwards now that the
+            // drained items are destroyed
+            ptr::copy(tail_start, drain_range_start, self.tail_length);
+
+            // we can now update the length
+            self.inner
+                .set_len(self.drain_range_start + self.tail_length);
+        }
     }
 }
