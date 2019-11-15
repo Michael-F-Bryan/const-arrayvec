@@ -7,7 +7,7 @@ edition = "2018"
 description = "A vec-like type backed by an array on the stack."
 repository = "https://github.com/Michael-F-Bryan/const-arrayvec"
 categories = ["data-structures", "embedded", "no-std"]
-tags = ["no_std", "vec", "array", "arrayvec", "buffer"]
+keywords = ["no_std", "vec", "array", "arrayvec", "buffer"]
 
 [badges]
 travis-ci = { repository = "Michael-F-Bryan/const-arrayvec", branch = "master" }

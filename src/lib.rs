@@ -70,7 +70,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// # Examples
     ///
     /// ```rust
-    /// # use const_arrayvec::ArrayVec;
+    /// use const_arrayvec::ArrayVec;
     /// let mut vector: ArrayVec<u32, 5> = ArrayVec::new();
     ///
     /// assert!(vector.is_empty());
@@ -80,7 +80,29 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// assert_eq!(vector.len(), 1);
     /// assert_eq!(vector[0], 42);
     /// ```
-    pub fn push(&mut self, item: T) -> Result<(), CapacityError<T>> {
+    pub fn push(&mut self, item: T) {
+        match self.try_push(item) {
+            Ok(_) => {},
+            Err(e) => panic!("Push failed: {}", e),
+        }
+    }
+
+    /// Try to add an item to the end of the vector, returning the original item
+    /// if there wasn't enough room.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use const_arrayvec::{ArrayVec, CapacityError};
+    /// let mut vector: ArrayVec<u32, 2> = ArrayVec::new();
+    ///
+    /// assert!(vector.try_push(1).is_ok());
+    /// assert!(vector.try_push(2).is_ok());
+    /// assert!(vector.is_full());
+    ///
+    /// assert_eq!(vector.try_push(42), Err(CapacityError(42)));
+    /// ```
+    pub fn try_push(&mut self, item: T) -> Result<(), CapacityError<T>> {
         if self.is_full() {
             Err(CapacityError(item))
         } else {
