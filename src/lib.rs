@@ -370,7 +370,7 @@ impl<T, const N: usize> AsMut<[T]> for ArrayVec<T, { N }> {
 
 impl<T: Debug, const N: usize> Debug for ArrayVec<T, { N }> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.as_slice()).finish()
+        self.as_slice().fmt(f)
     }
 }
 
