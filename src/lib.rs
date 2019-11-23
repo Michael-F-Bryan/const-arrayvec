@@ -475,3 +475,22 @@ impl<T> Display for CapacityError<T> {
         write!(f, "Insufficient capacity")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ArrayVec;
+
+    #[test]
+    fn test_equal_to_expected_slice() {
+        let mut vector: ArrayVec<u8, 10> = ArrayVec::new();
+        vector.push(0);
+        vector.push(1);
+        vector.push(2);
+        assert_eq!(vector.len(), 3);
+
+        vector.try_insert(3, 3).unwrap();
+
+        assert_eq!(vector.as_slice(), &[0, 1, 2, 3]);
+        assert_eq!(vector.capacity(), 10);
+    }
+}
