@@ -180,12 +180,14 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     pub fn truncate(&mut self, new_length: usize) {
         unsafe {
             if new_length < self.len() {
-                let start = self.as_mut_ptr().add(new_length);
                 let num_elements_to_remove = self.len() - new_length;
+                // Start by setting the new length, so we can "pre-poop our pants" (http://cglab.ca/~abeinges/blah/everyone-poops/)
+                self.set_len(new_length);
+
+                let start = self.as_mut_ptr().add(new_length);
                 let tail: *mut [T] =
                     slice::from_raw_parts_mut(start, num_elements_to_remove);
 
-                self.set_len(new_length);
                 ptr::drop_in_place(tail);
             }
         }
