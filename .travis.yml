@@ -9,6 +9,7 @@ script:
   - cargo build --verbose
   - cargo test --verbose
   - cargo doc --verbose
+  - ./ci/miri.sh
 
 before_deploy:
   - cargo doc --verbose
