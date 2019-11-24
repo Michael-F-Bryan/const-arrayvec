@@ -180,12 +180,14 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     pub fn truncate(&mut self, new_length: usize) {
         unsafe {
             if new_length < self.len() {
-                let start = self.as_mut_ptr().add(new_length);
                 let num_elements_to_remove = self.len() - new_length;
+                // Start by setting the new length, so we can "pre-poop our pants" (http://cglab.ca/~abeinges/blah/everyone-poops/)
+                self.set_len(new_length);
+
+                let start = self.as_mut_ptr().add(new_length);
                 let tail: *mut [T] =
                     slice::from_raw_parts_mut(start, num_elements_to_remove);
 
-                self.set_len(new_length);
                 ptr::drop_in_place(tail);
             }
         }
@@ -473,5 +475,24 @@ pub struct CapacityError<T>(pub T);
 impl<T> Display for CapacityError<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Insufficient capacity")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ArrayVec;
+
+    #[test]
+    fn test_equal_to_expected_slice() {
+        let mut vector: ArrayVec<u8, 10> = ArrayVec::new();
+        vector.push(0);
+        vector.push(1);
+        vector.push(2);
+        assert_eq!(vector.len(), 3);
+
+        vector.try_insert(3, 3).unwrap();
+
+        assert_eq!(vector.as_slice(), &[0, 1, 2, 3]);
+        assert_eq!(vector.capacity(), 10);
     }
 }
