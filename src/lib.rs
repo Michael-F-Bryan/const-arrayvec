@@ -49,20 +49,27 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         }
     }
 
+    #[inline]
     pub const fn len(&self) -> usize { self.length }
 
+    #[inline]
     pub const fn is_empty(&self) -> bool { self.len() == 0 }
 
+    #[inline]
     pub const fn capacity(&self) -> usize { N }
 
+    #[inline]
     pub const fn remaining_capacity(&self) -> usize {
         self.capacity() - self.len()
     }
 
+    #[inline]
     pub const fn is_full(&self) -> bool { self.len() >= self.capacity() }
 
+    #[inline]
     pub fn as_ptr(&self) -> *const T { self.items.as_ptr() as *const T }
 
+    #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut T { self.items.as_mut_ptr() as *mut T }
 
     /// Add an item to the end of the vector.
@@ -140,6 +147,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// This method is `unsafe` because it changes the number of "valid"
     /// elements the vector thinks it contains, without adding or removing any
     /// elements. Use with care.
+    #[inline]
     pub unsafe fn set_len(&mut self, new_length: usize) {
         debug_assert!(new_length <= self.capacity());
         self.length = new_length;
@@ -194,6 +202,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     }
 
     /// Remove all items from the vector.
+    #[inline]
     pub fn clear(&mut self) { self.truncate(0); }
 
     /// Insert an item.
