@@ -257,7 +257,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         let len = self.len();
 
         // bounds checks
-        if index > self.len() {
+        if index > len {
             out_of_bounds!("try_insert", index, len);
         }
         if self.is_full() {
@@ -299,7 +299,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         let other_len = other.len();
 
         unsafe {
-            let dst = self.as_mut_ptr().offset(self_len as isize);
+            let dst = self.as_mut_ptr().add(self_len);
             // Note: we have a mutable reference to self, so it's not possible
             // for the two arrays to overlap
             ptr::copy_nonoverlapping(other.as_ptr(), dst, other_len);
