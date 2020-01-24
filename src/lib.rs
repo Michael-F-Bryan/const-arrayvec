@@ -265,19 +265,204 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         }
 
         unsafe {
-            // The spot to put the new value
-            let p = self.as_mut_ptr().add(index);
-            // Shift everything over to make space. (Duplicating the
-            // `index`th element into two consecutive places.)
-            ptr::copy(p, p.offset(1), len - index);
-            // Write it in, overwriting the first copy of the `index`th
-            // element.
-            ptr::write(p, item);
-            // update the length
-            self.set_len(len + 1);
+            self.insert_unchecked(index, item, len);
         }
 
         Ok(())
+    }
+
+    /// Insert an item into the vector, removing and returning its last
+    /// item if already full.
+    ///
+    /// # Panics
+    ///
+    /// The item cannot be inserted at an index greater than the
+    /// vector's length or greater or equal to the maximum capacity `N`.
+    ///
+    /// # Exmaples
+    ///
+    /// When the vector's not full, [`ArrayVec::force_insert`] acts like
+    /// [`ArrayVec::insert`]:
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector: ArrayVec<u8, 5> = ArrayVec::new();
+    ///
+    /// assert_eq!(vector.force_insert(0, 42), None);
+    /// assert_eq!(vector.force_insert(0, 24), None);
+    /// assert_eq!(&vector, [24, 42].as_ref());
+    /// ```
+    ///
+    /// But when the vector's full, we get a different result:
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector = ArrayVec::from([
+    ///     "He".to_owned(),
+    ///     "ya".to_owned(),
+    /// ]);
+    ///
+    /// let out = vector
+    ///     .force_insert(1, "llo".to_owned())
+    ///     .unwrap();
+    ///
+    /// assert_eq!(&out, "ya");
+    /// assert_eq!(&vector, ["He".to_owned(), "llo".to_owned()].as_ref());
+    /// ```
+    pub fn force_insert(&mut self, index: usize, item: T) -> Option<T> {
+        let len = self.len();
+
+        // bound checks
+        if index > len {
+            out_of_bounds!("force_insert", index, len);
+        }
+
+        let result;
+
+        if self.is_full() {
+            // bound checks (here: N == len)
+            if index >= N {
+                out_of_bounds!("force_insert", index, len);
+            }
+
+            unsafe {
+                // Store the last item before it's removed.
+                result = Some(ptr::read(self.as_ptr().add(len - 1)));
+
+                // The last element should be removed so we shouldn't
+                // copy it.
+                self.insert_unchecked_keep_len(index, item, len - 1);
+            }
+        } else {
+            // bound checks
+            if index > len {
+                out_of_bounds!("force_insert", index, len);
+            }
+
+            // Since nothing's going to be removed, the vector's size
+            // is going to be increased and nothing will be returned.
+            unsafe {
+                self.insert_unchecked(index, item, len);
+                result = None;
+            }
+        }
+
+        result
+    }
+
+    /// Insert an item into the vector without checking if the index is
+    /// valid or if the vector isn't full or the vector's length.
+    ///
+    /// # Safety
+    ///
+    /// If you plan on using this function, you need to check for the
+    /// 3 previously mentioned conditions yourself before calling this
+    /// method.
+    #[inline]
+    pub unsafe fn insert_unchecked(
+        &mut self,
+        index: usize,
+        item: T,
+        len: usize,
+    ) {
+        self.insert_unchecked_keep_len(index, item, len);
+        self.set_len(len + 1);
+    }
+
+    /// Insert an item into the vector without checking if the index is
+    /// valid or if the vector isn't full or the vector's length and
+    /// without incrementing the vector's length.
+    ///
+    /// # Safety
+    ///
+    /// If you plan on using this function, you need to check for the
+    /// 3 previously mentioned conditions yourself before calling this
+    /// method. You also need to increment the vector's length afterward
+    /// yourself.
+    pub unsafe fn insert_unchecked_keep_len(
+        &mut self,
+        index: usize,
+        item: T,
+        len: usize,
+    ) {
+        // The spot to put the Vec::new(new value);
+        let p = self.as_mut_ptr().add(index);
+        // Shift everything over to make space. (Duplicating the
+        // `index`th element into two consecutive places.)
+        ptr::copy(p, p.add(1), len - index);
+        // Write it in, overwriting the first copy of the `index`th
+        // element.
+        ptr::write(p, item);
+    }
+
+    /// Remove the value contained at `index` and return it.
+    ///
+    /// # Panics
+    ///
+    /// The index isn't valid (i.e. is out of bounds).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector = ArrayVec::from([4, 3, 2]);
+    ///
+    /// let three = vector.remove(1);
+    ///
+    /// assert_eq!(three, 3);
+    /// assert_eq!(&vector, [4, 2].as_ref());
+    /// ```
+    pub fn remove(&mut self, index: usize) -> T {
+        if let Some(item) = self.try_remove(index) {
+            item
+        } else {
+            out_of_bounds!("remove", index, self.len());
+        }
+    }
+
+    /// If `index` is valid, remove the value contained at `index` and
+    /// return it.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector = ArrayVec::from([4, 3, 2]);
+    ///
+    /// let three = vector.try_remove(1);
+    /// let what = vector.try_remove(24);
+    ///
+    /// assert_eq!(three, Some(3));
+    /// assert_eq!(what, None);
+    /// assert_eq!(&vector, [4, 2].as_ref());
+    /// ```
+    pub fn try_remove(&mut self, index: usize) -> Option<T> {
+        if index < self.len() {
+            Some(unsafe { self.remove_unchecked(index) })
+        } else {
+            None
+        }
+    }
+
+    /// Remove the value contained at the passed index and
+    /// return it.
+    ///
+    /// # Safety
+    ///
+    /// The index must be valid (i.e. `index < vec.len()`).
+    pub unsafe fn remove_unchecked(&mut self, index: usize) -> T {
+        let len = self.len();
+
+        // Where the value to remove is.
+        let p = self.as_mut_ptr().add(index);
+        // Read the value before sending it to the other world.
+        let item = ptr::read(p);
+        // Shift every value after the removed one to the left.
+        ptr::copy(p.add(1), p, len - index);
+        // We removed an item, so the length should be decremented.
+        self.set_len(len - 1);
+
+        item
     }
 
     pub fn as_slice(&self) -> &[T] { self.deref() }
