@@ -36,6 +36,7 @@ pub struct ArrayVec<T, const N: usize> {
 
 impl<T, const N: usize> ArrayVec<T, { N }> {
     /// Create a new, empty [`ArrayVec`].
+    #[inline]
     pub fn new() -> ArrayVec<T, { N }> {
         unsafe {
             ArrayVec {
@@ -436,6 +437,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// assert_eq!(what, None);
     /// assert_eq!(&vector, [4, 2].as_ref());
     /// ```
+    #[inline]
     pub fn try_remove(&mut self, index: usize) -> Option<T> {
         if index < self.len() {
             Some(unsafe { self.remove_unchecked(index) })
@@ -465,8 +467,10 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         item
     }
 
+    #[inline]
     pub fn as_slice(&self) -> &[T] { self.deref() }
 
+    #[inline]
     pub fn as_slice_mut(&mut self) -> &mut [T] { self.deref_mut() }
 
     pub fn try_extend_from_slice(
@@ -493,6 +497,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         Ok(())
     }
 
+    #[inline]
     pub fn drain(&mut self, range: Range<usize>) -> Drain<'_, T, { N }> {
         Drain::with_range(self, range)
     }
@@ -501,12 +506,14 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
 impl<T, const N: usize> Deref for ArrayVec<T, { N }> {
     type Target = [T];
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.as_ptr(), self.len()) }
     }
 }
 
 impl<T, const N: usize> DerefMut for ArrayVec<T, { N }> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { slice::from_raw_parts_mut(self.as_mut_ptr(), self.len()) }
     }
@@ -550,6 +557,7 @@ impl<T, const N: usize> Drop for ArrayVec<T, { N }> {
     /// // and the counter should have updated
     /// assert_eq!(counter.load(Ordering::Relaxed), 3);
     /// ```
+    #[inline]
     fn drop(&mut self) {
         // Makes sure the destructors for all items are run.
         self.clear();
@@ -557,14 +565,17 @@ impl<T, const N: usize> Drop for ArrayVec<T, { N }> {
 }
 
 impl<T, const N: usize> AsRef<[T]> for ArrayVec<T, { N }> {
+    #[inline]
     fn as_ref(&self) -> &[T] { self.as_slice() }
 }
 
 impl<T, const N: usize> AsMut<[T]> for ArrayVec<T, { N }> {
+    #[inline]
     fn as_mut(&mut self) -> &mut [T] { self.as_slice_mut() }
 }
 
 impl<T: Debug, const N: usize> Debug for ArrayVec<T, { N }> {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.as_slice().fmt(f)
     }
@@ -573,34 +584,40 @@ impl<T: Debug, const N: usize> Debug for ArrayVec<T, { N }> {
 impl<T: PartialEq, const N: usize, const M: usize> PartialEq<ArrayVec<T, { M }>>
     for ArrayVec<T, { N }>
 {
+    #[inline]
     fn eq(&self, other: &ArrayVec<T, { M }>) -> bool {
         self.as_slice() == other.as_slice()
     }
 }
 
 impl<T: PartialEq, const N: usize> PartialEq<[T]> for ArrayVec<T, { N }> {
+    #[inline]
     fn eq(&self, other: &[T]) -> bool { self.as_slice() == other }
 }
 
 impl<T: Eq, const N: usize> Eq for ArrayVec<T, { N }> {}
 
 impl<T: PartialOrd, const N: usize> PartialOrd for ArrayVec<T, { N }> {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.as_slice().partial_cmp(other.as_slice())
     }
 }
 
 impl<T: Ord, const N: usize> Ord for ArrayVec<T, { N }> {
+    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_slice().cmp(other.as_slice())
     }
 }
 
 impl<T: Hash, const N: usize> Hash for ArrayVec<T, { N }> {
+    #[inline]
     fn hash<H: Hasher>(&self, hasher: &mut H) { self.as_slice().hash(hasher); }
 }
 
 impl<T, const N: usize> Default for ArrayVec<T, { N }> {
+    #[inline]
     fn default() -> Self { ArrayVec::new() }
 }
 
@@ -610,6 +627,7 @@ where
 {
     type Output = <[T] as Index<Ix>>::Output;
 
+    #[inline]
     fn index(&self, ix: Ix) -> &Self::Output { self.as_slice().index(ix) }
 }
 
@@ -617,6 +635,7 @@ impl<Ix, T, const N: usize> IndexMut<Ix> for ArrayVec<T, { N }>
 where
     [T]: IndexMut<Ix>,
 {
+    #[inline]
     fn index_mut(&mut self, ix: Ix) -> &mut Self::Output {
         self.as_slice_mut().index_mut(ix)
     }
@@ -667,6 +686,7 @@ impl<T, const N: usize> From<[T; N]> for ArrayVec<T, { N }> {
 pub struct CapacityError<T>(pub T);
 
 impl<T> Display for CapacityError<T> {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Insufficient capacity")
     }
