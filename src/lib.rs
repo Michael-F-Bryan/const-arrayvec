@@ -460,7 +460,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         // Read the value before sending it to the other world.
         let item = ptr::read(p);
         // Shift every value after the removed one to the left.
-        ptr::copy(p.add(1), p, len - index);
+        ptr::copy(p.add(1), p, len - index - 1);
         // We removed an item, so the length should be decremented.
         self.set_len(len - 1);
 
@@ -708,5 +708,23 @@ mod tests {
 
         assert_eq!(vector.as_slice(), &[0, 1, 2, 3]);
         assert_eq!(vector.capacity(), 10);
+    }
+
+    #[test]
+    fn test_force_insert_and_remove() {
+        let mut vector: ArrayVec<u8, 2> = ArrayVec::new();
+
+        // force_insert
+        vector.force_insert(0, 2);
+        vector.force_insert(1, 4);
+        vector.force_insert(0, 4);
+        assert_eq!(vector.as_slice(), &[4, 2]);
+
+        // remove
+        assert_eq!(vector.remove(0), 4);
+        assert_eq!(vector.as_slice(), &[2]);
+        assert_eq!(vector.try_remove(1), None);
+        assert_eq!(vector.remove(0), 2);
+        assert_eq!(vector.len(), 0);
     }
 }
