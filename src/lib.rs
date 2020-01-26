@@ -467,6 +467,95 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         item
     }
 
+    /// Remove the value contained at `index` and return it without
+    /// conserving order.
+    ///
+    /// The removed value is replaced by the last value making this an
+    /// `O(1)` operation.
+    ///
+    /// # Panics
+    ///
+    /// The index is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector = ArrayVec::from([1, 2, 4]);
+    ///
+    /// assert_eq!(vector.swap_remove(0), 1);
+    /// assert_eq!(&vector, [4, 2].as_ref());
+    ///
+    /// assert_eq!(vector.swap_remove(1), 2);
+    /// assert_eq!(&vector, [4].as_ref());
+    ///
+    /// assert_eq!(vector.swap_remove(0), 4);
+    /// assert_eq!(vector.len(), 0);
+    /// ```
+    pub fn swap_remove(&mut self, index: usize) -> T {
+        if let Some(item) = self.try_swap_remove(index) {
+            item
+        } else {
+            out_of_bounds!("swap_remove", index, self.len());
+        }
+    }
+
+    /// If the index is in bounds, remove the value contained at `index`
+    /// and return it without conserving order.
+    ///
+    /// The removed value is replaced by the last value making this an
+    /// `O(1)` operation.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use const_arrayvec::ArrayVec;
+    /// let mut vector = ArrayVec::from([1, 2, 4]);
+    ///
+    /// assert_eq!(vector.try_swap_remove(0), Some(1));
+    /// assert_eq!(&vector, [4, 2].as_ref());
+    ///
+    /// assert_eq!(vector.try_swap_remove(24), None);
+    /// assert_eq!(&vector, [4, 2].as_ref());
+    /// ```
+    #[inline]
+    pub fn try_swap_remove(&mut self, index: usize) -> Option<T> {
+        if index < self.len() {
+            Some(unsafe { self.swap_remove_unchecked(index) })
+        } else {
+            None
+        }
+    }
+
+    /// Remove the value contained at `index` and return it without
+    /// conserving order.
+    ///
+    /// The removed value is replaced by the last value making this an
+    /// `O(1)` operation.
+    ///
+    /// # Safety
+    ///
+    /// The index must be in bounds.
+    pub unsafe fn swap_remove_unchecked(&mut self, index: usize) -> T {
+        let new_len = self.len() - 1;
+        let p = self.as_mut_ptr();
+        let p_item = p.add(index);
+
+        // Read the item from its pointer.
+        let item = ptr::read(p_item);
+
+        // Check `index` isn't the last item's index.
+        if new_len != index {
+            // Replace the item at `index` with the last item.
+            ptr::copy_nonoverlapping(p.add(new_len), p_item, 1);
+        }
+
+        // Resize the vector so that the last item gets ignored.
+        self.set_len(new_len);
+
+        item
+    }
+
     #[inline]
     pub fn as_slice(&self) -> &[T] { self.deref() }
 
@@ -725,6 +814,14 @@ mod tests {
         assert_eq!(vector.as_slice(), &[2]);
         assert_eq!(vector.try_remove(1), None);
         assert_eq!(vector.remove(0), 2);
+        assert_eq!(vector.len(), 0);
+
+        // swap_remove
+        vector = ArrayVec::from([2, 4]);
+        assert_eq!(vector.swap_remove(0), 2);
+        assert_eq!(vector.as_slice(), &[4]);
+        assert_eq!(vector.try_swap_remove(1), None);
+        assert_eq!(vector.swap_remove(0), 4);
         assert_eq!(vector.len(), 0);
     }
 }
