@@ -400,7 +400,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     ///
     /// # Panics
     ///
-    /// The index isn't valid (i.e. is out of bounds).
+    /// The index is out of bounds.
     ///
     /// # Examples
     ///
@@ -421,8 +421,8 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         }
     }
 
-    /// If `index` is valid, remove the value contained at `index` and
-    /// return it.
+    /// If `index` is in bounds, remove the value contained at `index`
+    /// and return it.
     ///
     /// # Examples
     ///
@@ -446,12 +446,11 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         }
     }
 
-    /// Remove the value contained at the passed index and
-    /// return it.
+    /// Remove the value contained at `index` and return it.
     ///
     /// # Safety
     ///
-    /// The index must be valid (i.e. `index < vec.len()`).
+    /// The index must be in bounds.
     pub unsafe fn remove_unchecked(&mut self, index: usize) -> T {
         let len = self.len();
 
