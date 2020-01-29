@@ -280,7 +280,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// The item cannot be inserted at an index greater than the
     /// vector's length or greater or equal to the maximum capacity `N`.
     ///
-    /// # Exmaples
+    /// # Examples
     ///
     /// When the vector's not full, [`ArrayVec::force_insert`] acts like
     /// [`ArrayVec::insert`]:
@@ -313,18 +313,13 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     pub fn force_insert(&mut self, index: usize, item: T) -> Option<T> {
         let len = self.len();
 
-        // bound checks
-        if index > len {
-            out_of_bounds!("force_insert", index, len);
-        }
-
         let result;
 
-        if self.is_full() {
-            // bound checks (here: N == len)
-            if index >= N {
-                out_of_bounds!("force_insert", index, len);
-            }
+        if index > len || index == N {
+            // Failed bound checks.
+            out_of_bounds!("force_insert", index, len);
+        } else if self.is_full() {
+            // The last item must be removed to perform the insertion.
 
             unsafe {
                 // Store the last item before it's removed.
@@ -335,17 +330,12 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
                 self.insert_unchecked_keep_len(index, item, len - 1);
             }
         } else {
-            // bound checks
-            if index > len {
-                out_of_bounds!("force_insert", index, len);
-            }
-
             // Since nothing's going to be removed, the vector's size
             // is going to be increased and nothing will be returned.
             unsafe {
                 self.insert_unchecked(index, item, len);
-                result = None;
             }
+            result = None;
         }
 
         result
@@ -380,20 +370,20 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// 3 previously mentioned conditions yourself before calling this
     /// method. You also need to increment the vector's length afterward
     /// yourself.
-    pub unsafe fn insert_unchecked_keep_len(
+    unsafe fn insert_unchecked_keep_len(
         &mut self,
         index: usize,
         item: T,
         len: usize,
     ) {
-        // The spot to put the Vec::new(new value);
-        let p = self.as_mut_ptr().add(index);
+        // The spot to put the new value at.
+        let ptr_index = self.as_mut_ptr().add(index);
         // Shift everything over to make space. (Duplicating the
         // `index`th element into two consecutive places.)
-        ptr::copy(p, p.add(1), len - index);
+        ptr::copy(ptr_index, ptr_index.add(1), len - index);
         // Write it in, overwriting the first copy of the `index`th
         // element.
-        ptr::write(p, item);
+        ptr::write(ptr_index, item);
     }
 
     /// Remove the value contained at `index` and return it.
@@ -414,10 +404,9 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// assert_eq!(&vector, [4, 2].as_ref());
     /// ```
     pub fn remove(&mut self, index: usize) -> T {
-        if let Some(item) = self.try_remove(index) {
-            item
-        } else {
-            out_of_bounds!("remove", index, self.len());
+        match self.try_remove(index) {
+            Some(item) => item,
+            None => out_of_bounds!("remove", index, self.len()),
         }
     }
 
@@ -455,11 +444,11 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         let len = self.len();
 
         // Where the value to remove is.
-        let p = self.as_mut_ptr().add(index);
+        let ptr_index = self.as_mut_ptr().add(index);
         // Read the value before sending it to the other world.
-        let item = ptr::read(p);
+        let item = ptr::read(ptr_index);
         // Shift every value after the removed one to the left.
-        ptr::copy(p.add(1), p, len - index - 1);
+        ptr::copy(ptr_index.add(1), ptr_index, len - index - 1);
         // We removed an item, so the length should be decremented.
         self.set_len(len - 1);
 
@@ -492,10 +481,9 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// assert_eq!(vector.len(), 0);
     /// ```
     pub fn swap_remove(&mut self, index: usize) -> T {
-        if let Some(item) = self.try_swap_remove(index) {
-            item
-        } else {
-            out_of_bounds!("swap_remove", index, self.len());
+        match self.try_swap_remove(index) {
+            Some(item) => item,
+            None => out_of_bounds!("swap_remove", index, self.len()),
         }
     }
 
@@ -537,18 +525,16 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     /// The index must be in bounds.
     pub unsafe fn swap_remove_unchecked(&mut self, index: usize) -> T {
         let new_len = self.len() - 1;
-        let p = self.as_mut_ptr();
-        let p_item = p.add(index);
+        let ptr_vec_start = self.as_mut_ptr();
+        let ptr_index = ptr_vec_start.add(index);
 
         // Read the item from its pointer.
-        let item = ptr::read(p_item);
-
-        // Check `index` isn't the last item's index.
-        if new_len != index {
-            // Replace the item at `index` with the last item.
-            ptr::copy_nonoverlapping(p.add(new_len), p_item, 1);
-        }
-
+        let item = ptr::read(ptr_index);
+        // Read the last item from its pointer.
+        let last_item = ptr::read(ptr_vec_start.add(new_len));
+        // Replace the item at `index` with the last item without calling
+        // `drop`.
+        ptr::write(ptr_index, last_item);
         // Resize the vector so that the last item gets ignored.
         self.set_len(new_len);
 
