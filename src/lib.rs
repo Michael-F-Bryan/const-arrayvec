@@ -266,7 +266,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
         }
 
         unsafe {
-            self.insert_unchecked(index, item, len);
+            self.insert_unchecked(index, item);
         }
 
         Ok(())
@@ -333,7 +333,7 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
             // Since nothing's going to be removed, the vector's size
             // is going to be increased and nothing will be returned.
             unsafe {
-                self.insert_unchecked(index, item, len);
+                self.insert_unchecked(index, item);
             }
             result = None;
         }
@@ -342,20 +342,16 @@ impl<T, const N: usize> ArrayVec<T, { N }> {
     }
 
     /// Insert an item into the vector without checking if the index is
-    /// valid or if the vector isn't full or the vector's length.
+    /// valid or if the vector isn't full.
     ///
     /// # Safety
     ///
     /// If you plan on using this function, you need to check for the
-    /// 3 previously mentioned conditions yourself before calling this
+    /// 2 previously mentioned conditions yourself before calling this
     /// method.
     #[inline]
-    pub unsafe fn insert_unchecked(
-        &mut self,
-        index: usize,
-        item: T,
-        len: usize,
-    ) {
+    pub unsafe fn insert_unchecked(&mut self, index: usize, item: T) {
+        let len = self.len();
         self.insert_unchecked_keep_len(index, item, len);
         self.set_len(len + 1);
     }
