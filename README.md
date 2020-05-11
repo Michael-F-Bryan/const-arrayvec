@@ -32,4 +32,5 @@ license, shall be dual licensed as above, without any additional terms or
 conditions.
 
 [API Docs]: https://michael-f-bryan.github.io/const-arrayvec
-[blog]: http://adventures.michaelfbryan.com/posts/const-arrayvec.md
+[blog]: http://adventures.michaelfbryan.com/posts/const-arrayvec/
+
